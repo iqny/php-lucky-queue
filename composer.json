@@ -1,0 +1,33 @@
+{
+    "name": "php-lucky-queue/queue",
+    "authors": [
+        {
+            "name": "iqny",
+            "email": "2728768646@qq.com"
+        }
+    ],
+    "require": {
+        "predis/predis": "~1.0",
+        "php": ">=7.1",
+        "iqny/rocketmq-sdk": "~1.0",
+        "ext-amqp": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "PhpLuckyQueue\\Queue\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "PhpLuckyQueue\\Queue\\QueueQihuProvider"
+            ],
+            "aliases": {
+                "LuckyQueue": "PhpLuckyQueue\\Queue\\Facades\\LuckyQueue::class"
+            }
+        }
+    }
+}
