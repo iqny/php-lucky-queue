@@ -23,7 +23,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "PhpLuckyQueue\\Queue\\QueueQihuProvider"
+                "PhpLuckyQueue\\Queue\\LuckyQueueProvider"
             ],
             "aliases": {
                 "LuckyQueue": "PhpLuckyQueue\\Queue\\Facades\\LuckyQueue::class"
