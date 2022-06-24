@@ -9,8 +9,7 @@
     "require": {
         "predis/predis": "~1.0",
         "php": ">=7.1",
-        "iqny/rocketmq-sdk": "~1.0",
-        "ext-amqp": "*"
+        "iqny/rocketmq-sdk": "~1.0"
     },
     "autoload": {
         "psr-4": {

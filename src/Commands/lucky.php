@@ -54,7 +54,7 @@ class lucky extends Command
             case 'start':
                 echo 'start...' . PHP_EOL;
                 echo 'start success' . PHP_EOL;
-                printf('使用 ps -ef|grep %s 查看运行状态\n',php_uname('n'));
+                printf("使用 ps -ef|grep %s 查看运行状态\n",php_uname('n'));
                 $this->start($daemon);
                 break;
             case 'stop':

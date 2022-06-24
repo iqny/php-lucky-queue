@@ -11,7 +11,6 @@ abstract class BaseQueue
     private $data = [];
     protected $queueName = '';
     private $traceID = '';
-    public static $rabbitmqExit = true;
 
     public function __construct()
     {
@@ -35,11 +34,7 @@ abstract class BaseQueue
                 return ;
             }
             //echo "work start".$msgQueue.' $queueConsumerPid:',$queueConsumerPid.PHP_EOL;
-            msg_receive($workQueue, $workNumber, $msgtype, 1024, $message, true, 1);
-            if (empty($message)) {
-                usleep(1000);
-                continue;
-            }
+            msg_receive($workQueue, $workNumber, $msgtype, 1024, $message);
             $msgs = explode('.', $message);
             $jobNumber = array_shift($msgs);
             $data = implode('.', $msgs);
