@@ -35,6 +35,9 @@ abstract class BaseQueue
             }
             //echo "work start".$msgQueue.' $queueConsumerPid:',$queueConsumerPid.PHP_EOL;
             msg_receive($workQueue, $workNumber, $msgtype, 1024, $message);
+            if (empty($message)){
+                continue;
+            }
             $msgs = explode('.', $message);
             $jobNumber = array_shift($msgs);
             $data = implode('.', $msgs);
