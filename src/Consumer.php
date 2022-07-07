@@ -73,7 +73,7 @@ class Consumer
                     return false;
                 });
             }elseif (empty($message)){
-                usleep(1000);
+                usleep(10000);
             }
         }
     }

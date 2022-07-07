@@ -18,7 +18,7 @@ abstract class BaseQueue
 
     abstract function parse(): bool;
 
-    public function run($cfg, $consumeQueue, $pid,$workQueue)
+    public function run($cfg, $consumeQueue,$workQueue)
     {
         $pStartTime = time();
         $count = $cfg['max_exe_count'];
@@ -26,6 +26,11 @@ abstract class BaseQueue
         $workNumber = $cfg['work_number'];
         $consumeNumber = $cfg['consume_number'];
         Signal::SetSigHandler([self::class, 'sigHandler']);
+        $flags = 0;
+        //安装signal_handler用阻塞模式
+        if (!function_exists('attach_signal')) {
+            $flags = 1;
+        }
         while (self::$running) {
             $newTime = date('H', time());
             $startTime = date('H', $pStartTime);
@@ -34,8 +39,9 @@ abstract class BaseQueue
                 return ;
             }
             //echo "work start".$msgQueue.' $queueConsumerPid:',$queueConsumerPid.PHP_EOL;
-            msg_receive($workQueue, $workNumber, $msgtype, 1024, $message);
+            msg_receive($workQueue, $workNumber, $msgtype, 1024, $message,true,$flags);
             if (empty($message)){
+                usleep(10000);
                 continue;
             }
             $msgs = explode('.', $message);
@@ -78,6 +84,7 @@ abstract class BaseQueue
     {
         Logger::pushProcessor($type,$this->queueName,function($record){
             $record['trace_id'] = $this->traceID;
+            $record['work_pid'] = posix_getpid();
             return $record;
         });
     }

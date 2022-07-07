@@ -18,10 +18,7 @@ class LuckyQueue
     private $host;
     private $queueConsumer = [];//从数据源获取数据
     private $queueWork = [];//队列work
-    /**
-     * @var false|resource
-     */
-    private $msgQueue;
+    private $monitorRunningKey;
 
     /**
      * 构造方法
@@ -31,6 +28,7 @@ class LuckyQueue
         $this->cfg = $config->get('lucky');
         $this->redis = RedisFactory::createClient($this->cfg['redis']);
         $this->host = php_uname('n');
+        $this->monitorRunningKey = sprintf('%s-%s',$this->host,'monitor');
     }
 
     public function append($pid)
@@ -68,6 +66,7 @@ class LuckyQueue
             die();
         }
         $this->redis->hSet($this->host, 'monitor', posix_getpid());
+        $msgQueue = $this->createMsgQueue();//创建msg_queue
         $sleepTime = 5;
         $queueCount = count($this->cfg['queue']) + 1;
         while ($this->running) {
@@ -78,15 +77,11 @@ class LuckyQueue
                 foreach ($this->cfg['queue'] as $cfg) {
                     $queueName = $cfg['queue_name'];
                     if (isset($cfg['run']) && $cfg['run'] && $this->running) {
-                        //$this->completingCfg($cfg);
-                        //$this->check($queueName, $cfg);
                         $cfg['queue_name'] = $queueName;
                         $cfg['work_number'] = $workNumber;
                         $cfg['consume_number'] = $consumeNumber;
-                        $keyConsume = ftok(__FILE__, $consumeNumber);
-                        $consumeQueue = msg_get_queue($keyConsume);
-                        $keyWork = ftok(__FILE__, $workNumber);
-                        $workQueue = msg_get_queue($keyWork);
+                        $consumeQueue = $msgQueue[$consumeNumber];
+                        $workQueue = $msgQueue[$workNumber];
                         $this->checkConsume($cfg, $consumeQueue, $workQueue);
                         $this->checkWork($cfg, $consumeQueue, $workQueue);
                     }
@@ -108,6 +103,7 @@ class LuckyQueue
                     }
                 }
             } catch (\Exception $e) {
+                sleep(1);
                 Logger::warning('monitor',"exp:{$e->getMessage()},{$e->getFile()},{$e->getLine()}");
             }
         }
@@ -117,7 +113,26 @@ class LuckyQueue
     {
         return $this->redis->hGet($this->host, 'monitor');
     }
-
+    private function createMsgQueue()
+    {
+        $queueCount = count($this->cfg['queue']) + 1;
+        $workNumber = 1;
+        $consumeNumber = $queueCount;
+        $msgQueue = [];
+        foreach ($this->cfg['queue'] as $cfg) {
+            if (isset($cfg['run']) && $cfg['run'] && $this->running) {
+                $keyConsume = ftok(__FILE__, $consumeNumber);
+                $consumeQueue = msg_get_queue($keyConsume);
+                $keyWork = ftok(__FILE__, $workNumber);
+                $workQueue = msg_get_queue($keyWork);
+                $msgQueue[$workNumber] = $workQueue;
+                $msgQueue[$consumeNumber] = $consumeQueue;
+            }
+            $workNumber++;
+            $consumeNumber++;
+        }
+        return $msgQueue;
+    }
     public function checkConsume($cfg, $consumeQueue, $workQueue)
     {
         $queueName = $cfg['queue_name'];
@@ -138,6 +153,7 @@ class LuckyQueue
             $this->queueWork[$queueName] = [];
         }
         for ($i = 0; $i < $cfg['worker_count']; $i++) {
+            usleep(10000);
             $pid = $this->queueWork[$queueName][$i] ?? 0;
             if ($pid) {
                 if (!intval($pid) || !posix_kill($pid, 0)) {
@@ -163,7 +179,7 @@ class LuckyQueue
                 cli_set_process_title(sprintf("%s %s slave", $this->host, $queueName));
             }
             $this->redis->hSet($this->host, $queueName, posix_getpid());
-            consumer::start($cfg, $consumeQueue, $workQueue);
+            Consumer::start($cfg, $consumeQueue, $workQueue);
             exit(0);
         }
     }
@@ -179,10 +195,10 @@ class LuckyQueue
         } else {
             Logger::warning('monitor', "start {$queueName} work");
             if (PHP_OS == 'Linux') {
-                cli_set_process_title(sprintf("%s %s work", $this->host, $queueName));
+                cli_set_process_title(sprintf("%s %s work[%d]", $this->host, $queueName,++$i));
             }
             $this->redis->sAdd(sprintf("%s:%s-work", $this->host, $queueName), posix_getpid());
-            Worker::start($cfg, $consumeQueue, posix_getpid(), $workQueue);
+            Worker::start($cfg, $consumeQueue, $workQueue);
             exit(0);
         }
     }
@@ -209,7 +225,7 @@ class LuckyQueue
 
     private function exitClear()
     {
-        $this->redis->del('monitor');
+        $this->redis->del($this->monitorRunningKey);
         $this->redis->del($this->host);
     }
 
@@ -247,14 +263,13 @@ class LuckyQueue
 
     private function checkMonitor()
     {
-        return $this->redis->exists('monitor');
+        return $this->redis->exists($this->monitorRunningKey);
     }
 
     private function setMonitor()
     {
-        $key = 'monitor';
-        $this->redis->set($key, 1);
-        $this->redis->expire($key, 10);
+        $this->redis->set($this->monitorRunningKey, 1);
+        $this->redis->expire($this->monitorRunningKey, 10);
     }
 
     private function daemon()
