@@ -185,7 +185,7 @@ class MonitorCounter
     }
     public static function checkCleanCounter(DriveInterface $redisClient)
     {
-
+        usleep(100000);
         $pid = self::$cleanCounter[self::$cleanCounterKey] ?? 0;
         if ($pid) {
             if (!intval($pid) || !posix_kill($pid, 0)) {
@@ -216,6 +216,7 @@ class MonitorCounter
     public static function sigHandler($signo)
     {
         self::$running = false;
+        exit();
     }
 }
 

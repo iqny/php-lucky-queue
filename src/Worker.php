@@ -31,7 +31,7 @@ class Worker{
             self::$queueWork[$queueName] = [];
         }
         for ($i = 0; $i < $cfg['worker_count']; $i++) {
-            usleep(10000);
+            usleep(50000);
             $pid = self::$queueWork[$queueName][$i] ?? 0;
             if ($pid) {
                 if (!intval($pid) || !posix_kill($pid, 0)) {

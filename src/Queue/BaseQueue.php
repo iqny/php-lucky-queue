@@ -42,7 +42,7 @@ abstract class BaseQueue
             //echo "work start".$msgQueue.' $queueConsumerPid:',$queueConsumerPid.PHP_EOL;
             msg_receive($workQueue, $workNumber, $msgtype, 1024, $message,true,$flags);
             if (empty($message)){
-                usleep(50000);
+                sleep(1);
                 continue;
             }
             $msgs = explode('.', $message);

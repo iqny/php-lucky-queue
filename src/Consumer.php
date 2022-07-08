@@ -61,7 +61,7 @@ class Consumer
                     }
                     $data = $envelope->getBody();
                     //$pid = self::getPushPid($queueName);
-                    $jobNumber = self::getJobNumber();//self::$snowflake->getId();
+                    $jobNumber = self::getJobNumber();
                     self::$ackObject[$jobNumber] = [
                         'envelope' => $envelope,
                         'queue' => $queue,
@@ -96,6 +96,7 @@ class Consumer
 
     public static function checkConsume($cfg, $consumeQueue, $workQueue,DriveInterface $redisClient)
     {
+        usleep(100000);
         $queueName = $cfg['queue_name'];
         $pid = self::$queueConsumer[$queueName] ?? 0;
         if ($pid) {
