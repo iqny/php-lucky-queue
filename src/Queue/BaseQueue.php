@@ -4,6 +4,7 @@ namespace PhpLuckyQueue\Queue\Queue;
 
 use PhpLuckyQueue\Queue\Logger;
 use PhpLuckyQueue\Queue\Signal\Signal;
+use PhpLuckyQueue\Queue\MonitorCounter;
 
 abstract class BaseQueue
 {
@@ -25,13 +26,13 @@ abstract class BaseQueue
         $this->queueName = $cfg['queue_name'];
         $workNumber = $cfg['work_number'];
         $consumeNumber = $cfg['consume_number'];
-        Signal::SetSigHandler([self::class, 'sigHandler']);
         $flags = 0;
         //安装signal_handler用阻塞模式
         if (!function_exists('attach_signal')) {
             $flags = 1;
         }
         while (self::$running) {
+            Signal::SetSigHandler([self::class, 'sigHandler']);
             $newTime = date('H', time());
             $startTime = date('H', $pStartTime);
             if ($newTime != $startTime) {
@@ -41,13 +42,15 @@ abstract class BaseQueue
             //echo "work start".$msgQueue.' $queueConsumerPid:',$queueConsumerPid.PHP_EOL;
             msg_receive($workQueue, $workNumber, $msgtype, 1024, $message,true,$flags);
             if (empty($message)){
-                usleep(10000);
+                usleep(50000);
                 continue;
             }
             $msgs = explode('.', $message);
             $jobNumber = array_shift($msgs);
             $data = implode('.', $msgs);
             $this->setData($data);
+            //记录处理数量
+            MonitorCounter::updateCounter($this->queueName);
             $this->traceID = $this->data['trace_id']??substr(md5(sprintf('%s%s',$data,microtime(true))),0,8);
             //记录处理数量
             //MonitorCounter::updateCounter($this->queueName);

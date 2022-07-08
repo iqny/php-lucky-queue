@@ -25,7 +25,7 @@ class Lock
         if (!is_null(self::$conn)) {
             return self::$conn;
         }
-        $cfg = config('queueqihu');
+        $cfg = config('lucky');
         self::$conn = new \Redis();
         //连接redis-server
         self::$conn->pconnect($cfg['redis']['host'], $cfg['redis']['port']);

@@ -3,6 +3,10 @@ return [
     'connect' => [
         'drive' => env('QUEUE_DRIVE', 'rabbitmq'),
     ],
+    'counter'=>[
+        'precisions'=>['5' => '5s','60' => '1m', '300' => '5m', '3600' => '1h', '18000' => '2h', '86400' => '24h', '172800' => '48h'],
+        'sample_count'=>20,
+    ],
     'redis' => [
         'drive' => env('QUEUE_REDIS_DRIVE', 'redis'),//predis
         'host' => env('QUEUE_REDIS_HOST', '127.0.0.1'),//127.0.0.1

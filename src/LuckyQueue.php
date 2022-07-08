@@ -69,6 +69,8 @@ class LuckyQueue
         $msgQueue = $this->createMsgQueue();//创建msg_queue
         $sleepTime = 5;
         $queueCount = count($this->cfg['queue']) + 1;
+        MonitorCounter::setPrecision($this->cfg['counter']['precisions']);
+        MonitorCounter::setSampleCount($this->cfg['counter']['sample_count']);
         while ($this->running) {
             try {
                 $workNumber = 1;
@@ -77,13 +79,15 @@ class LuckyQueue
                 foreach ($this->cfg['queue'] as $cfg) {
                     $queueName = $cfg['queue_name'];
                     if (isset($cfg['run']) && $cfg['run'] && $this->running) {
+                        usleep(10000);
                         $cfg['queue_name'] = $queueName;
                         $cfg['work_number'] = $workNumber;
                         $cfg['consume_number'] = $consumeNumber;
                         $consumeQueue = $msgQueue[$consumeNumber];
                         $workQueue = $msgQueue[$workNumber];
-                        $this->checkConsume($cfg, $consumeQueue, $workQueue);
-                        $this->checkWork($cfg, $consumeQueue, $workQueue);
+                        Consumer::checkConsume($cfg, $consumeQueue, $workQueue,$this->redis);
+                        Worker::checkWork($cfg, $consumeQueue, $workQueue,$this->redis);
+                        MonitorCounter::checkCleanCounter($this->redis);
                     }
                     $workNumber++;
                     $consumeNumber++;
@@ -103,7 +107,7 @@ class LuckyQueue
                     }
                 }
             } catch (\Exception $e) {
-                sleep(1);
+                sleep(3);
                 Logger::warning('monitor',"exp:{$e->getMessage()},{$e->getFile()},{$e->getLine()}");
             }
         }
@@ -132,75 +136,6 @@ class LuckyQueue
             $consumeNumber++;
         }
         return $msgQueue;
-    }
-    public function checkConsume($cfg, $consumeQueue, $workQueue)
-    {
-        $queueName = $cfg['queue_name'];
-        $pid = $this->queueConsumer[$queueName] ?? 0;
-        if ($pid) {
-            if (!intval($pid) || !posix_kill($pid, 0)) {
-                $this->consumeStart($cfg, $consumeQueue, $workQueue);
-            }
-        } else {
-            $this->consumeStart($cfg, $consumeQueue, $workQueue);
-        }
-    }
-
-    public function checkWork($cfg, $consumeQueue, $workQueue)
-    {
-        $queueName = $cfg['queue_name'];
-        if (!isset($this->queueWork[$queueName])) {
-            $this->queueWork[$queueName] = [];
-        }
-        for ($i = 0; $i < $cfg['worker_count']; $i++) {
-            usleep(10000);
-            $pid = $this->queueWork[$queueName][$i] ?? 0;
-            if ($pid) {
-                if (!intval($pid) || !posix_kill($pid, 0)) {
-                    $this->workStart($cfg, $i, $consumeQueue, $workQueue);
-                }
-            } else {
-                $this->workStart($cfg, $i, $consumeQueue, $workQueue);
-            }
-        }
-    }
-
-    private function consumeStart($cfg, $consumeQueue, $workQueue)
-    {
-        $queueName = $cfg['queue_name'];
-        $pid = pcntl_fork();
-        if ($pid == -1) {
-            die('ERROR:fork failed monitor');
-        } elseif ($pid) {
-            $this->queueConsumer[$queueName] = $pid;
-        } else {
-            Logger::warning('monitor', "start {$queueName} consumer");
-            if (PHP_OS == 'Linux') {
-                cli_set_process_title(sprintf("%s %s slave", $this->host, $queueName));
-            }
-            $this->redis->hSet($this->host, $queueName, posix_getpid());
-            Consumer::start($cfg, $consumeQueue, $workQueue);
-            exit(0);
-        }
-    }
-
-    private function workStart($cfg, $i, $consumeQueue, $workQueue)
-    {
-        $queueName = $cfg['queue_name'];
-        $pid = pcntl_fork();
-        if ($pid == -1) {
-            die('ERROR:fork failed monitor');
-        } elseif ($pid) {
-            $this->queueWork[$queueName][$i] = $pid;
-        } else {
-            Logger::warning('monitor', "start {$queueName} work");
-            if (PHP_OS == 'Linux') {
-                cli_set_process_title(sprintf("%s %s work[%d]", $this->host, $queueName,++$i));
-            }
-            $this->redis->sAdd(sprintf("%s:%s-work", $this->host, $queueName), posix_getpid());
-            Worker::start($cfg, $consumeQueue, $workQueue);
-            exit(0);
-        }
     }
 
     //信号事件回调
@@ -231,7 +166,11 @@ class LuckyQueue
 
     private function stop()
     {
-        foreach ($this->cfg['queue'] as $cfg) {
+        $queues = $this->cfg['queue'];
+        $queues[] = [
+            'queue_name'=>'clean_counter'
+        ];
+        foreach ($queues as $cfg) {
             $queueName = $cfg['queue_name'];
             $pid = $this->redis->hGet($this->host, $queueName);
             if ($pid && posix_kill($pid, 0)) {

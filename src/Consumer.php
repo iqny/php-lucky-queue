@@ -2,18 +2,15 @@
 
 namespace PhpLuckyQueue\Queue;
 
+use PhpLuckyQueue\Queue\Drive\DriveInterface;
 use PhpLuckyQueue\Queue\Drive\Redis\RedisFactory;
-use PhpLuckyQueue\Queue\Queue\BaseQueue;
 use PhpLuckyQueue\Queue\Signal\Signal;
 
 class Consumer
 {
     private static $running = true;
-    private static $workPids = [];
     private static $ackObject = [];
     private static $jobNumber = 0;//任务编码
-    public static $rabbitmqExit = true;
-    public static $count = 1000;
     /**
      * @var Drive\DriveInterface
      */
@@ -23,6 +20,7 @@ class Consumer
     public static $consumeNumber;
     public static $workQueue;
     public static $queueQos;
+    private static $queueConsumer = [];//从数据源获取数据
     /**
      * @var Snowflake
      */
@@ -37,9 +35,8 @@ class Consumer
         self::$workNumber = $cfg['work_number'];
         self::$consumeNumber = $cfg['consume_number'];
         self::$client = ConnPool::getQueueClient($cfg['queue_name']);
-        self::$snowflake = new Snowflake(self::$consumeNumber);
-        Signal::SetSigHandler([self::class, 'sigHandler']);
         while (self::$running) {
+            Signal::SetSigHandler([self::class, 'sigHandler']);
             msg_receive(self::$consumeQueue, self::$consumeNumber, $msgtype, 1024, $message, true, 1);
             if ($message) {
                 //var_dump($message);
@@ -49,7 +46,11 @@ class Consumer
                     unset(self::$ackObject[$message]);
                     if (!$b){
                         Logger::warning($queueName, "ack fail");
+                    }else{
+                        MonitorCounter::incCount($queueName,-1);
                     }
+                }else{
+                    Logger::warning($queueName, "{$message} 丢失，无法 ack");
                 }
             }
             if (count(self::$ackObject) <= self::$queueQos) {
@@ -60,7 +61,7 @@ class Consumer
                     }
                     $data = $envelope->getBody();
                     //$pid = self::getPushPid($queueName);
-                    $jobNumber = self::$snowflake->getId();//self::getJobNumber();
+                    $jobNumber = self::getJobNumber();//self::$snowflake->getId();
                     self::$ackObject[$jobNumber] = [
                         'envelope' => $envelope,
                         'queue' => $queue,
@@ -91,5 +92,37 @@ class Consumer
             return self::$jobNumber;
         }
         return ++self::$jobNumber;
+    }
+
+    public static function checkConsume($cfg, $consumeQueue, $workQueue,DriveInterface $redisClient)
+    {
+        $queueName = $cfg['queue_name'];
+        $pid = self::$queueConsumer[$queueName] ?? 0;
+        if ($pid) {
+            if (!intval($pid) || !posix_kill($pid, 0)) {
+                self::consumeStart($cfg, $consumeQueue, $workQueue,$redisClient);
+            }
+        } else {
+            self::consumeStart($cfg, $consumeQueue, $workQueue,$redisClient);
+        }
+    }
+    private static function consumeStart($cfg, $consumeQueue, $workQueue,DriveInterface $redisClient)
+    {
+        $host = php_uname('n');
+        $queueName = $cfg['queue_name'];
+        $pid = pcntl_fork();
+        if ($pid == -1) {
+            die('ERROR:fork failed monitor');
+        } elseif ($pid) {
+            self::$queueConsumer[$queueName] = $pid;
+        } else {
+            Logger::warning('monitor', "start {$queueName} consumer");
+            if (PHP_OS == 'Linux') {
+                cli_set_process_title(sprintf("%s %s slave", $host, $queueName));
+            }
+            $redisClient->hSet($host, $queueName, posix_getpid());
+            self::start($cfg, $consumeQueue, $workQueue);
+            exit(0);
+        }
     }
 }
