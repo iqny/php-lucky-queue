@@ -46,7 +46,7 @@ class LuckyQueue
         //强制退出
         if ( 9 == $signal){
             $command = <<<COMMAND
-ps -ef|grep 69c37574ce8e |grep -v "grep"|awk '{print $2}'|xargs kill -9
+ps -ef|grep $this->host |grep -v "grep"|awk '{print $2}'|xargs kill -9
 COMMAND;
             $fp = popen($command, "r");
             $rs = "";
