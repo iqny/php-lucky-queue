@@ -1,10 +1,12 @@
 <?php
+
 namespace PhpLuckyQueue\Queue;
 
 use PhpLuckyQueue\Queue\Drive\DriveInterface;
 use PhpLuckyQueue\Queue\Queue\BaseQueue;
 
-class Worker{
+class Worker
+{
     private static $queueWork;
 
     public static function start($cfg, $consumeQueue, $workQueue)
@@ -20,11 +22,16 @@ class Worker{
             Logger::error("$queueName", "$class not implement PhpLuckyQueue\Queue\Queue\BaseQueue.");
             die("$class not implement PhpLuckyQueue\Queue\Queue\BaseQueue.");
         }
-        $queue->run($cfg,$consumeQueue,$workQueue);
+        try {
+            $queue->run($cfg, $consumeQueue, $workQueue);
+        } catch (\Exception $e) {
+            Logger::warning($queueName, 'worker', ['message' => $e->getMessage(), 'line' => $e->getLine(), 'file' => $e->getFile()]);
+            exit(0);
+        }
     }
 
 
-    public static function checkWork($cfg, $consumeQueue, $workQueue,DriveInterface $redisClient)
+    public static function checkWork($cfg, $consumeQueue, $workQueue, DriveInterface $redisClient)
     {
         $queueName = $cfg['queue_name'];
         if (!isset(self::$queueWork[$queueName])) {
@@ -35,15 +42,15 @@ class Worker{
             $pid = self::$queueWork[$queueName][$i] ?? 0;
             if ($pid) {
                 if (!intval($pid) || !posix_kill($pid, 0)) {
-                    self::workStart($cfg, $i, $consumeQueue, $workQueue,$redisClient);
+                    self::workStart($cfg, $i, $consumeQueue, $workQueue, $redisClient);
                 }
             } else {
-                self::workStart($cfg, $i, $consumeQueue, $workQueue,$redisClient);
+                self::workStart($cfg, $i, $consumeQueue, $workQueue, $redisClient);
             }
         }
     }
 
-    private static function workStart($cfg, $i, $consumeQueue, $workQueue,DriveInterface $redisClient)
+    private static function workStart($cfg, $i, $consumeQueue, $workQueue, DriveInterface $redisClient)
     {
         $host = php_uname('n');
         $queueName = $cfg['queue_name'];
@@ -55,7 +62,7 @@ class Worker{
         } else {
             Logger::warning('monitor', "start {$queueName} work");
             if (PHP_OS == 'Linux') {
-                cli_set_process_title(sprintf("%s %s work[%d]", $host, $queueName,++$i));
+                cli_set_process_title(sprintf("%s %s work[%d]", $host, $queueName, ++$i));
             }
             $redisClient->sAdd(sprintf("%s:%s-work", $host, $queueName), posix_getpid());
             self::start($cfg, $consumeQueue, $workQueue);

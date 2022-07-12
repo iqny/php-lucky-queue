@@ -41,8 +41,22 @@ class LuckyQueue
         return posix_kill($this->getMonitorPid(), SIGHUP);
     }
 
-    public function kill()
+    public function kill($signal)
     {
+        //强制退出
+        if ( 9 == $signal){
+            $command = <<<COMMAND
+ps -ef|grep 69c37574ce8e |grep -v "grep"|awk '{print $2}'|xargs kill -9
+COMMAND;
+            $fp = popen($command, "r");
+            $rs = "";
+            while (!feof($fp)) {
+                $rs .= fread($fp, 1024);
+            }
+            pclose($fp);
+            print_r($rs);
+            exit(0);
+        }
         if (!posix_kill($this->getMonitorPid(), SIGTERM)) {
             $this->stop();
             exit(0);

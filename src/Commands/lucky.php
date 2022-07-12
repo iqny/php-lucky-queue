@@ -14,7 +14,7 @@ class lucky extends Command
      *
      * @var string
      */
-    protected $signature = 'queue:lucky {commend} {--daemon=0}';
+    protected $signature = 'queue:lucky {commend} {--daemon=0} {--signal=15}';
 
     /**
      * The console command description.
@@ -49,6 +49,7 @@ class lucky extends Command
     {
         $commend = $this->argument('commend');
         $daemon = $this->option('daemon');
+        $signal = $this->option('signal');
         $this->cli = new queue($this->config);
         switch ($commend) {
             case 'start':
@@ -60,7 +61,7 @@ class lucky extends Command
             case 'stop':
                 echo 'stop...' . PHP_EOL;
                 echo 'stop success' . PHP_EOL;
-                $this->stop();
+                $this->stop($signal);
                 break;
             case 'restart':
                 echo 'restart...' . PHP_EOL;
@@ -93,8 +94,8 @@ class lucky extends Command
         $this->cli->restart();
     }
 
-    private function stop()
+    private function stop($signal)
     {
-        $this->cli->kill();
+        $this->cli->kill($signal);
     }
 }

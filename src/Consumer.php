@@ -21,62 +21,67 @@ class Consumer
     public static $workQueue;
     public static $queueQos;
     private static $queueConsumer = [];//从数据源获取数据
-    /**
-     * @var Snowflake
-     */
-    public static $snowflake;
 
     public static function start($cfg, $consumeQueue, $workQueue)
     {
-        self::$consumeQueue = $consumeQueue;
-        self::$workQueue = $workQueue;
-        $queueName = $cfg['queue_name'];
-        self::$queueQos = $cfg['qos']??50;
-        self::$workNumber = $cfg['work_number'];
-        self::$consumeNumber = $cfg['consume_number'];
-        self::$client = ConnPool::getQueueClient($cfg['queue_name']);
-        while (self::$running) {
-            Signal::SetSigHandler([self::class, 'sigHandler']);
-            msg_receive(self::$consumeQueue, self::$consumeNumber, $msgtype, 1024, $message, true, 1);
-            if ($message) {
-                //var_dump($message);
-                $obj = self::$ackObject[$message] ?? 0;
-                if (!empty($obj)) {
-                    $b=$obj['queue']->ack($obj['envelope']->getDeliveryTag());
-                    unset(self::$ackObject[$message]);
-                    if (!$b){
-                        Logger::warning($queueName, "ack fail");
+        try {
+            self::$consumeQueue = $consumeQueue;
+            self::$workQueue = $workQueue;
+            $queueName = $cfg['queue_name'];
+            self::$queueQos = $cfg['qos']??50;
+            self::$workNumber = $cfg['work_number'];
+            self::$consumeNumber = $cfg['consume_number'];
+            self::$client = ConnPool::getQueueClient($cfg['queue_name']);
+            while (self::$running) {
+                Signal::SetSigHandler([self::class, 'sigHandler']);
+                msg_receive(self::$consumeQueue, self::$consumeNumber, $msgtype, 1024, $message, true, 1);
+                if ($message) {
+                    $obj = self::$ackObject[$message] ?? 0;
+                    if (!empty($obj)) {
+                        $b=$obj['queue']->ack($obj['envelope']->getDeliveryTag());
+                        unset(self::$ackObject[$message]);
+                        if (!$b){
+                            Logger::warning($queueName, "ack fail");
+                        }else{
+                            MonitorCounter::incCount($queueName,-1);
+                        }
                     }else{
-                        MonitorCounter::incCount($queueName,-1);
+                        Logger::warning($queueName, "{$message} 丢失，无法 ack");
                     }
-                }else{
-                    Logger::warning($queueName, "{$message} 丢失，无法 ack");
+                }
+                if (count(self::$ackObject) <= self::$queueQos) {
+                    self::$client->get($queueName, function ($envelope, $queue) use ($queueName) {
+                        if (!$envelope) {
+                            sleep(1);
+                            return false;
+                        }
+                        $data = $envelope->getBody();
+                        if (empty($data)) {
+                            sleep(1);
+                            return false;
+                        }
+                        //$pid = self::getPushPid($queueName);
+                        $jobNumber = self::getJobNumber();
+                        self::$ackObject[$jobNumber] = [
+                            'envelope' => $envelope,
+                            'queue' => $queue,
+                        ];
+                        if ($data) {
+                            msg_send(self::$workQueue, self::$workNumber, sprintf("%s.%s", $jobNumber, $data));
+                        } else {
+                            sleep(1);
+                        }
+                        return false;
+                    });
+                }elseif (empty($message)){
+                    usleep(10000);
                 }
             }
-            if (count(self::$ackObject) <= self::$queueQos) {
-                self::$client->get($queueName, function ($envelope, $queue) use ($queueName) {
-                    if (!$envelope) {
-                        sleep(1);
-                        return false;
-                    }
-                    $data = $envelope->getBody();
-                    //$pid = self::getPushPid($queueName);
-                    $jobNumber = self::getJobNumber();
-                    self::$ackObject[$jobNumber] = [
-                        'envelope' => $envelope,
-                        'queue' => $queue,
-                    ];
-                    if ($data) {
-                        msg_send(self::$workQueue, self::$workNumber, sprintf("%s.%s", $jobNumber, $data));
-                    } else {
-                        sleep(1);
-                    }
-                    return false;
-                });
-            }elseif (empty($message)){
-                usleep(10000);
-            }
+        }catch (\Exception $e){
+            Logger::warning($queueName, 'Consumer',['message'=>$e->getMessage(),'line'=>$e->getLine(),'file'=>$e->getFile()]);
+            exit(0);
         }
+
     }
 
 
