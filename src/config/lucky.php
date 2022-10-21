@@ -43,7 +43,6 @@ return [
             ],
             'worker_count' => 2,
             'max_exe_count' => 10000,
-            'qos'=>20,
         ],
         [
             'queue_name' => 'order',
@@ -58,7 +57,6 @@ return [
             ],
             'worker_count' => 2,
             'max_exe_count' => 10000,
-            'qos'=>20,
         ],
         [
             'queue_name' => 'log',
@@ -73,7 +71,6 @@ return [
             ],
             'worker_count' => 1,
             'max_exe_count' => 10000,
-            'qos'=>20,
         ]
     ]
 ];

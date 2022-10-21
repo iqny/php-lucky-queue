@@ -21,14 +21,14 @@ class Consumer
     public static $workQueue;
     public static $queueQos;
     private static $queueConsumer = [];//从数据源获取数据
-
+    public static $quit = false;
     public static function start($cfg, $consumeQueue, $workQueue)
     {
         try {
             self::$consumeQueue = $consumeQueue;
             self::$workQueue = $workQueue;
             $queueName = $cfg['queue_name'];
-            self::$queueQos = $cfg['qos']??50;
+            self::$queueQos = $cfg['worker_count'];
             self::$workNumber = $cfg['work_number'];
             self::$consumeNumber = $cfg['consume_number'];
             self::$client = ConnPool::getQueueClient($cfg['queue_name']);
@@ -49,7 +49,13 @@ class Consumer
                         Logger::warning($queueName, "{$message} 丢失，无法 ack");
                     }
                 }
-                if (count(self::$ackObject) <= self::$queueQos) {
+                //如果没有需要确认的信息并且已经接收到退出指令，执行退出操作
+                if (count(self::$ackObject) <= 0 && self::$quit){
+                    echo "退出操作\n";
+                    self::$running = false;
+                }
+                //接收到退出指令不要队列获取信息来处理
+                if (count(self::$ackObject) < self::$queueQos && self::$quit==false) {
                     self::$client->get($queueName, function ($envelope, $queue) use ($queueName) {
                         if (!$envelope) {
                             sleep(1);
@@ -87,7 +93,9 @@ class Consumer
 
     public static function sigHandler($signo)
     {
-        self::$running = false;
+        //接收到指令
+        echo "接收到指令\n";
+        self::$quit = true;
     }
 
     private static function getJobNumber(): int
