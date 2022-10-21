@@ -51,7 +51,6 @@ class Consumer
                 }
                 //如果没有需要确认的信息并且已经接收到退出指令，执行退出操作
                 if (count(self::$ackObject) <= 0 && self::$quit){
-                    echo "退出操作\n";
                     self::$running = false;
                 }
                 //接收到退出指令不要队列获取信息来处理
@@ -94,7 +93,6 @@ class Consumer
     public static function sigHandler($signo)
     {
         //接收到指令
-        echo "接收到指令\n";
         self::$quit = true;
     }
 
