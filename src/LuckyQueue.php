@@ -16,8 +16,7 @@ class LuckyQueue
      */
     public $redis = null;
     private $host;
-    private $queueConsumer = [];//从数据源获取数据
-    private $queueWork = [];//队列work
+    private $msgQueue = [];//msg队列
     private $monitorRunningKey;
 
     /**
@@ -80,7 +79,7 @@ COMMAND;
             die();
         }
         $this->redis->hSet($this->host, 'monitor', posix_getpid());
-        $msgQueue = $this->createMsgQueue();//创建msg_queue
+        $this->msgQueue = $this->createMsgQueue();//创建msg_queue
         $sleepTime = 5;
         $queueCount = count($this->cfg['queue']) + 1;
         MonitorCounter::setPrecision($this->cfg['counter']['precisions']);
@@ -97,8 +96,8 @@ COMMAND;
                         $cfg['queue_name'] = $queueName;
                         $cfg['work_number'] = $workNumber;
                         $cfg['consume_number'] = $consumeNumber;
-                        $consumeQueue = $msgQueue[$consumeNumber];
-                        $workQueue = $msgQueue[$workNumber];
+                        $consumeQueue = $this->msgQueue[$consumeNumber];
+                        $workQueue = $this->msgQueue[$workNumber];
                         Consumer::checkConsume($cfg, $consumeQueue, $workQueue,$this->redis);
                         Worker::checkWork($cfg, $consumeQueue, $workQueue,$this->redis);
                         MonitorCounter::checkCleanCounter($this->redis);
@@ -176,6 +175,9 @@ COMMAND;
     {
         $this->redis->del($this->monitorRunningKey);
         $this->redis->del($this->host);
+        foreach ($this->msgQueue as $resource){
+            msg_remove_queue($resource);
+        }
     }
 
     private function stop()

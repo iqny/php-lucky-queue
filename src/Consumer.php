@@ -22,6 +22,7 @@ class Consumer
     public static $queueQos;
     private static $queueConsumer = [];//从数据源获取数据
     public static $quit = false;
+    private static $lastInTime;
     public static function start($cfg, $consumeQueue, $workQueue)
     {
         try {
@@ -53,8 +54,10 @@ class Consumer
                 if (count(self::$ackObject) <= 0 && self::$quit){
                     self::$running = false;
                 }
-                //接收到退出指令不要队列获取信息来处理
-                if (count(self::$ackObject) < self::$queueQos && self::$quit==false) {
+                $now = time();
+                //接收到退出指令不要队列获取信息来处理 为了防止任务处理太久链接断开，每180秒读取一次数据
+                if ((count(self::$ackObject) < self::$queueQos || self::$lastInTime+180<time()) && self::$quit==false) {
+                    self::$lastInTime = $now;//记录最后一次消息时间
                     self::$client->get($queueName, function ($envelope, $queue) use ($queueName) {
                         if (!$envelope) {
                             sleep(1);

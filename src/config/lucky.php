@@ -21,6 +21,7 @@ return [
         'password' => env('QUEUE_RABBITMQ_PASSWORD', ''),
         'exchange' => env('QUEUE_RABBITMQ_EXCHANGE', 'my_exchange'),//交换机名
         'vhost' => env('QUEUE_RABBITMQ_VHOST', '/'),//虚拟路径
+        'heartbeat'=>env('QUEUE_HEARTBEAT', 60),//心跳
     ],
     'rocketmq' => [
         'host' => env('QUEUE_ROCKETMQ_HOST', '127.0.0.1'),
