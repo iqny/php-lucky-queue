@@ -2,6 +2,7 @@
 
 namespace PhpLuckyQueue\Queue\Queue;
 
+use Illuminate\Support\Facades\DB;
 use PhpLuckyQueue\Queue\Logger;
 use PhpLuckyQueue\Queue\Signal\Signal;
 use PhpLuckyQueue\Queue\MonitorCounter;
@@ -19,13 +20,14 @@ abstract class BaseQueue
 
     abstract function parse(): bool;
 
-    public function run($cfg, $consumeQueue,$workQueue)
+    public function run($cfg, $consumeQueue, $workQueue)
     {
         $pStartTime = time();
         $count = $cfg['max_exe_count'];
         $this->queueName = $cfg['queue_name'];
         $workNumber = $cfg['work_number'];
         $consumeNumber = $cfg['consume_number'];
+        $retryCount = $cfg['retry_count'] ?? 1;
         $flags = 0;
         //安装signal_handler用阻塞模式
         if (!function_exists('attach_signal')) {
@@ -37,11 +39,11 @@ abstract class BaseQueue
             $startTime = date('H', $pStartTime);
             if ($newTime != $startTime) {
                 self::$running = false;
-                return ;
+                return;
             }
             //echo "work start".$msgQueue.' $queueConsumerPid:',$queueConsumerPid.PHP_EOL;
-            msg_receive($workQueue, $workNumber, $msgtype, 1024, $message,true,$flags);
-            if (empty($message)){
+            msg_receive($workQueue, $workNumber, $msgtype, 1024, $message, true, $flags);
+            if (empty($message)) {
                 sleep(1);
                 continue;
             }
@@ -51,15 +53,40 @@ abstract class BaseQueue
             $this->setData($data);
             //记录处理数量
             MonitorCounter::updateCounter($this->queueName);
-            $this->traceID = $this->data['trace_id']??substr(md5(sprintf('%s%s',$data,microtime(true))),0,8);
+            $this->traceID = $this->data['trace_id'] ?? substr(md5(sprintf('%s%s', $data, microtime(true))), 0, 8);
             //记录处理数量
             //MonitorCounter::updateCounter($this->queueName);
-            $ret = $this->parse();
-            if ($ret) {
-                msg_send($consumeQueue, $consumeNumber, $jobNumber);
-                //$this->info("{$pid} finish回调成功。");
-            } else {
-                $this->warning("call fail");
+            for ($i = $retryCount; $i >= 0; $i--) {
+                try {
+                    $ret = $exception = $this->parse();
+                    if ($ret) {
+                        msg_send($consumeQueue, $consumeNumber, $jobNumber);
+                        //$this->info("{$pid} finish回调成功。");
+                        break;
+                    } else {
+                        $tmpC = $retryCount - $i;
+                        if ($tmpC != 0) {
+                            $this->warning("重试第{$tmpC}次");
+                        }else{
+                            $this->warning("重试开启");
+                        }
+                        $this->warning("call fail");
+
+                    }
+                }catch (\Exception $e){
+                    $exception = json_encode(['message'=>$e->getMessage(),'line'=>$e->getLine(),'file'=>$e->getFile(),'code'=>$e->getCode()]);
+                }
+
+                if ($i == 0) {
+                    msg_send($consumeQueue, $consumeNumber, $jobNumber);
+                    $failed = [
+                        'connection' => $cfg['drive'] ?? '',
+                        'queue' => $queueName ?? '',
+                        'payload' => $data ?? '',
+                        'exception' => $exception ?? '',
+                    ];
+                    $this->failedJobs($failed);
+                }
             }
             $count--;
             if ($count <= 0) {
@@ -85,7 +112,7 @@ abstract class BaseQueue
 
     private function setTraceID($type)
     {
-        Logger::pushProcessor($type,$this->queueName,function($record){
+        Logger::pushProcessor($type, $this->queueName, function ($record) {
             $record['trace_id'] = $this->traceID;
             $record['work_pid'] = posix_getpid();
             return $record;
@@ -107,7 +134,7 @@ abstract class BaseQueue
     public function notice($msg, $context = [])
     {
         $this->setTraceID(__FUNCTION__);
-        Logger::notice($this->queueName, $msg,$context);
+        Logger::notice($this->queueName, $msg, $context);
     }
 
     public function debug($msg, $context = [])
@@ -138,5 +165,14 @@ abstract class BaseQueue
     {
         $this->setTraceID(__FUNCTION__);
         Logger::info($this->queueName, $msg, $context);
+    }
+    public function failedJobs($data){
+        $insert = [
+            'connection'=>$data['connection']??'',
+            'queue'=>$data['queue']??'',
+            'payload'=>$data['payload']??'',
+            'exception'=>$data['exception']??'',
+        ];
+        DB::table('failed_jobs')->insert($insert);
     }
 }

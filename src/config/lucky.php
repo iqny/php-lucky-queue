@@ -21,7 +21,7 @@ return [
         'password' => env('QUEUE_RABBITMQ_PASSWORD', ''),
         'exchange' => env('QUEUE_RABBITMQ_EXCHANGE', 'my_exchange'),//交换机名
         'vhost' => env('QUEUE_RABBITMQ_VHOST', '/'),//虚拟路径
-        'heartbeat'=>env('QUEUE_HEARTBEAT', 60),//心跳
+        'heartbeat'=>0
     ],
     'rocketmq' => [
         'host' => env('QUEUE_ROCKETMQ_HOST', '127.0.0.1'),
@@ -42,13 +42,15 @@ return [
                 'topic'=>'',
                 'group_id'=>'',
             ],
-            'worker_count' => 2,
+            'worker_count' => 3,
             'max_exe_count' => 10000,
+            'qos'=>20,
+            'retry_count'=>3
         ],
         [
             'queue_name' => 'order',
             'class' => 'App\LuckyQueue\OrderQueue',
-            'run' => true,
+            'run' => false,
             'drive' => '',
             //如果驱动是rocketmq，以下需要配置
             'rocketmq'=>[
@@ -56,8 +58,10 @@ return [
                 'topic'=>'',
                 'group_id'=>'',
             ],
-            'worker_count' => 2,
+            'worker_count' => 3,
             'max_exe_count' => 10000,
+            'qos'=>20,
+            'retry_count'=>3
         ],
         [
             'queue_name' => 'log',
@@ -72,6 +76,8 @@ return [
             ],
             'worker_count' => 1,
             'max_exe_count' => 10000,
+            'qos'=>20,
+            'retry_count'=>3
         ]
     ]
 ];

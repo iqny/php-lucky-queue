@@ -48,6 +48,7 @@ QUEUE_HEARTBEAT=120
 4、可以配置队列在执行指定任务次数自动退出，防止内存溢出
 5、日志目录在storage/logs/queue，按每天创建目录，
    支持多种日志类型记录：debug|info|alert|notice|warning|critical|emergency|error
+6、执行失败的任务记录在failed_jobs表
 ```
 命令：
 ```

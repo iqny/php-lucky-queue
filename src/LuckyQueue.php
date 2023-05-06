@@ -90,6 +90,7 @@ COMMAND;
                 $consumeNumber = $queueCount;
                 $this->setMonitor();
                 foreach ($this->cfg['queue'] as $cfg) {
+                    $cfg = array_merge($this->cfg['connect'],$cfg);
                     $queueName = $cfg['queue_name'];
                     if (isset($cfg['run']) && $cfg['run'] && $this->running) {
                         usleep(10000);
