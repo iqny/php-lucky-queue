@@ -220,7 +220,7 @@ class MonitorCounter
         } else {
             Logger::warning('monitor', sprintf("start %s clean_counter", self::$cleanCounterKey));
             if (PHP_OS == 'Linux') {
-                cli_set_process_title(sprintf("%s %s slave", $host, self::$cleanCounterKey));
+                cli_set_process_title(sprintf("%s %s", $host, self::$cleanCounterKey));
             }
             $redisClient->hSet($host, self::$cleanCounterKey, posix_getpid());
             self::cleanCounter();

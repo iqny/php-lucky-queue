@@ -133,7 +133,7 @@ class Consumer
         } else {
             Logger::warning('monitor', "start {$queueName} consumer");
             if (PHP_OS == 'Linux') {
-                cli_set_process_title(sprintf("%s %s slave", $host, $queueName));
+                cli_set_process_title(sprintf("%s %s consumer", $host, $queueName));
             }
             $redisClient->hSet($host, $queueName, posix_getpid());
             self::start($cfg, $consumeQueue, $workQueue);
