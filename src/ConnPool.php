@@ -21,6 +21,7 @@ class ConnPool
         }
         $cfg = config('lucky');
         $drive = $cfg['connect']['drive'];
+        $cfg['queue'] = array_column($cfg['queue'],null,'queue_name');
         $drive = isset($cfg['queue'][$queueName]['drive']) && !empty($cfg['queue'][$queueName]['drive']) ? $cfg['queue'][$queueName]['drive'] : $drive;
         switch ($drive) {
             case 'rabbitmq':
