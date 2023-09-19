@@ -2,6 +2,7 @@
 
 namespace PhpLuckyQueue\Queue;
 
+use PhpLuckyQueue\Queue\Drive\DriveInterface;
 use PhpLuckyQueue\Queue\Drive\Redis\RedisFactory;
 use PhpLuckyQueue\Queue\Signal\Signal;
 use Illuminate\Config\Repository;
@@ -12,7 +13,7 @@ class LuckyQueue
     public $running = true;
     public $pids = [];
     /**
-     * @var \Redis
+     * @var PhpLuckyQueue\Queue\Drive\Redis
      */
     public $redis = null;
     private $host;
@@ -224,8 +225,7 @@ COMMAND;
 
     private function setMonitor()
     {
-        $this->redis->set($this->monitorRunningKey, 1);
-        $this->redis->expire($this->monitorRunningKey, 10);
+        $this->redis->setEx($this->monitorRunningKey,10,1);
     }
 
     private function daemon()

@@ -13,8 +13,8 @@ class Redis implements DriveInterface
      * @var \Redis|Client
      */
     private $client = null;
-    private $cfg = [];
-    private $key = '';
+    private $cfg    = [];
+    private $key    = '';
     private $keyErr;
 
     public function __construct($cfg)
@@ -23,7 +23,7 @@ class Redis implements DriveInterface
         $this->connect($cfg);
     }
 
-    public function ack($getDeliveryTag = true):bool
+    public function ack($getDeliveryTag = true): bool
     {
         return true;
         // TODO: Implement ack() method.
@@ -105,15 +105,27 @@ class Redis implements DriveInterface
     {
         return $this->client->set($key, $val);
     }
-    public function sAdd($key,$values){
-           return $this->client->sAdd($key,$values);
+
+    public function setEx($key,$seconds, $val)
+    {
+        return $this->client->setex($key, $seconds, $val);
     }
-    public function sRem($key,$values){
-        return $this->client->sRem($key,$values);
+
+    public function sAdd($key, $values)
+    {
+        return $this->client->sAdd($key, $values);
     }
-    public function sMembers($key){
+
+    public function sRem($key, $values)
+    {
+        return $this->client->sRem($key, $values);
+    }
+
+    public function sMembers($key)
+    {
         return $this->client->sMembers($key);
     }
+
     public function expire($key, $tll)
     {
         return $this->client->expire($key, $tll);
@@ -127,8 +139,7 @@ class Redis implements DriveInterface
 
     public function connect($cfg)
     {
-        if ($this->client)
-        {
+        if ($this->client) {
             return;
         }
         //实例redis
@@ -157,7 +168,7 @@ class Redis implements DriveInterface
         if (isset($cfg['password']) && !empty($cfg['password'])) {
             $this->client->auth($cfg['password']);
         }
-        if (isset($cfg['db']) && !empty($cfg['db'])){
+        if (isset($cfg['db']) && !empty($cfg['db'])) {
             $this->client->select($cfg['db']);
         }
     }
